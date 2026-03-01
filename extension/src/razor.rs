@@ -142,7 +142,12 @@ impl zed::Extension for RazorExtension {
         }
 
         let rid = Self::platform_rid()?;
-        let server_dir = Self::server_dir_name().to_string();
+        let base_dir = std::env::current_dir()
+            .map_err(|e| format!("Failed to get extension work dir: {e}"))?;
+        let server_dir = base_dir
+            .join(Self::server_dir_name())
+            .to_string_lossy()
+            .into_owned();
 
         // Check cache
         if let Some(ref cached) = self.cached_server_dir {
