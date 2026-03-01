@@ -18,7 +18,7 @@
 ["if" "foreach" "for" "while" "do" "switch" "try" "lock" "await"] @keyword
 
 ; C# keywords without @
-["else" "catch" "finally" "case" "default" "break"] @keyword
+["else" "catch" "finally" "case" "default"] @keyword
 
 (html_start_tag
   name: (tag_name) @tag)

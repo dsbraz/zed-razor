@@ -47,7 +47,7 @@
 ["if" "foreach" "for" "while" "do" "switch" "try" "lock" "await"] @keyword.control
 
 ; C# keywords used inside control structures (no @)
-["else" "catch" "finally" "case" "default" "break"] @keyword.control
+["else" "catch" "finally" "case" "default"] @keyword.control
 
 ; ---------------------------------------------------------------------------
 ; Razor Expressions

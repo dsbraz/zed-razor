@@ -174,13 +174,17 @@ Switch statement
         (html_start_tag
           name: (tag_name))
         (html_end_tag
-          name: (tag_name))))
+          name: (tag_name)))
+      (razor_cs_statement
+        (csharp_statement)))
     (switch_case
       (html_element
         (html_start_tag
           name: (tag_name))
         (html_end_tag
-          name: (tag_name))))))
+          name: (tag_name)))
+      (razor_cs_statement
+        (csharp_statement)))))
 
 ================================================================================
 Try-catch
@@ -303,3 +307,54 @@ while (count < 10);
       (html_end_tag
         name: (tag_name)))
     (csharp_expression)))
+
+================================================================================
+If block with C# statements
+================================================================================
+
+@if (isVisible)
+{
+    var message = "hello";
+    <p></p>
+    count++;
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_if
+    (csharp_expression)
+    (razor_cs_statement
+      (csharp_statement))
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))
+    (razor_cs_statement
+      (csharp_statement))))
+
+================================================================================
+Foreach with mixed C# and HTML
+================================================================================
+
+@foreach (var item in items)
+{
+    var name = item.Name;
+    <li>@item.Value</li>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_foreach
+    (csharp_expression)
+    (razor_cs_statement
+      (csharp_statement))
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (implicit_expression
+        (implicit_expression_content))
+      (html_end_tag
+        name: (tag_name)))))

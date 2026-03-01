@@ -10,6 +10,7 @@ enum TokenType {
   IMPLICIT_EXPRESSION_CONTENT,
   HTML_TEXT,
   RAZOR_COMMENT_CONTENT,
+  CSHARP_STATEMENT,
 };
 
 // Scanner state for serialization
@@ -506,6 +507,164 @@ static bool scan_implicit_expression(TSLexer *lexer) {
   return has_content;
 }
 
+// Keywords that the grammar handles explicitly inside template blocks.
+// scan_csharp_statement must NOT consume these.
+static bool is_template_keyword(const char *word) {
+  const char *keywords[] = {
+    "else", "catch", "finally", "case", "default", NULL
+  };
+  for (int i = 0; keywords[i]; i++) {
+    if (strcmp(word, keywords[i]) == 0) return true;
+  }
+  return false;
+}
+
+// Scan a C# statement in a Razor template context (control structure body).
+// Stops at: < @ } at brace_depth 0, or EOF.
+// Reads until: ; (end of statement) or end of a balanced {} block.
+static bool scan_csharp_statement(TSLexer *lexer) {
+  bool has_content = false;
+  int brace_depth = 0;
+
+  // Check if the first word is a template keyword that the grammar handles.
+  // Peek at the first word without consuming it (tree-sitter restores on false).
+  if ((lexer->lookahead >= 'a' && lexer->lookahead <= 'z') ||
+      (lexer->lookahead >= 'A' && lexer->lookahead <= 'Z') ||
+      lexer->lookahead == '_') {
+    char word[16] = {0};
+    int len = 0;
+    // We must mark_end here to be able to "undo" if needed.
+    // Since tree-sitter restores lexer state when we return false,
+    // we just need to not advance past the word.
+    while (len < 15 && (
+        (lexer->lookahead >= 'a' && lexer->lookahead <= 'z') ||
+        (lexer->lookahead >= 'A' && lexer->lookahead <= 'Z') ||
+        (lexer->lookahead >= '0' && lexer->lookahead <= '9') ||
+        lexer->lookahead == '_')) {
+      word[len++] = (char)lexer->lookahead;
+      advance(lexer);
+    }
+    bool at_boundary = !(
+      (lexer->lookahead >= 'a' && lexer->lookahead <= 'z') ||
+      (lexer->lookahead >= 'A' && lexer->lookahead <= 'Z') ||
+      (lexer->lookahead >= '0' && lexer->lookahead <= '9') ||
+      lexer->lookahead == '_'
+    );
+    if (at_boundary && is_template_keyword(word)) {
+      return false;
+    }
+    // Not a template keyword - continue consuming the rest of the statement.
+    has_content = true;
+  }
+
+  while (lexer->lookahead != 0) {
+    // Stop at HTML/Razor/block boundaries when not inside nested braces
+    if (brace_depth == 0 && (
+        lexer->lookahead == '<' ||
+        lexer->lookahead == '@' ||
+        lexer->lookahead == '}')) {
+      break;
+    }
+
+    // Track nested braces
+    if (lexer->lookahead == '{') {
+      brace_depth++;
+      advance(lexer);
+      has_content = true;
+      continue;
+    }
+
+    if (lexer->lookahead == '}') {
+      brace_depth--;
+      advance(lexer);
+      has_content = true;
+      continue;
+    }
+
+    // Semicolon ends statement at top level
+    if (lexer->lookahead == ';' && brace_depth == 0) {
+      advance(lexer);
+      has_content = true;
+      lexer->mark_end(lexer);
+      return has_content;
+    }
+
+    // Handle regular strings
+    if (lexer->lookahead == '"' || lexer->lookahead == '\'') {
+      skip_csharp_string(lexer, NULL);
+      has_content = true;
+      continue;
+    }
+
+    // Handle verbatim strings @"..." and interpolated $"..."
+    if (lexer->lookahead == '@') {
+      advance(lexer);
+      has_content = true;
+      if (lexer->lookahead == '"') {
+        advance(lexer);
+        while (lexer->lookahead != 0) {
+          if (lexer->lookahead == '"') {
+            advance(lexer);
+            if (lexer->lookahead == '"') {
+              advance(lexer); // escaped ""
+            } else {
+              break;
+            }
+          } else {
+            advance(lexer);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (lexer->lookahead == '$') {
+      advance(lexer);
+      has_content = true;
+      if (lexer->lookahead == '"') {
+        skip_csharp_string(lexer, NULL);
+      }
+      continue;
+    }
+
+    // Handle comments
+    if (lexer->lookahead == '/') {
+      lexer->mark_end(lexer);
+      advance(lexer);
+      if (lexer->lookahead == '/') {
+        while (lexer->lookahead != 0 && lexer->lookahead != '\n') {
+          advance(lexer);
+        }
+        has_content = true;
+        continue;
+      } else if (lexer->lookahead == '*') {
+        advance(lexer);
+        while (lexer->lookahead != 0) {
+          if (lexer->lookahead == '*') {
+            advance(lexer);
+            if (lexer->lookahead == '/') {
+              advance(lexer);
+              break;
+            }
+          } else {
+            advance(lexer);
+          }
+        }
+        has_content = true;
+        continue;
+      }
+      has_content = true;
+      continue;
+    }
+
+    advance(lexer);
+    has_content = true;
+  }
+
+  lexer->mark_end(lexer);
+  return has_content;
+}
+
 // Keywords that appear in HTML content (after closing braces, etc.)
 static bool is_keyword(const char *word) {
   const char *keywords[] = {
@@ -646,8 +805,23 @@ bool tree_sitter_razor_external_scanner_scan(
 ) {
   (void)payload;
 
+  // CSHARP_STATEMENT: scan a C# statement in template context (before HTML_TEXT)
+  if (valid_symbols[CSHARP_STATEMENT]) {
+    skip_ws(lexer);
+    if (lexer->lookahead == '<' || lexer->lookahead == '@' ||
+        lexer->lookahead == '}' || lexer->lookahead == 0) {
+      return false;
+    }
+    if (scan_csharp_statement(lexer)) {
+      lexer->result_symbol = CSHARP_STATEMENT;
+      return true;
+    }
+    return false;
+  }
+
   // HTML_TEXT: scan text content (handles its own whitespace skipping)
-  if (valid_symbols[HTML_TEXT] && !valid_symbols[CSHARP_CODE] &&
+  if (valid_symbols[HTML_TEXT] && !valid_symbols[CSHARP_STATEMENT] &&
+      !valid_symbols[CSHARP_CODE] &&
       !valid_symbols[CSHARP_EXPRESSION] && !valid_symbols[IMPLICIT_EXPRESSION_CONTENT]) {
     if (scan_html_text(lexer)) {
       lexer->result_symbol = HTML_TEXT;

@@ -16,6 +16,7 @@ module.exports = grammar({
     $.implicit_expression_content,
     $._html_text,
     $._razor_comment_content,
+    $.csharp_statement,
   ],
 
   extras: _ => [/\s/],
@@ -48,6 +49,28 @@ module.exports = grammar({
       $.html_void_element,
       $.text_content,
     ),
+
+    // Like _node but also allows bare C# statements (for control structure bodies)
+    _template_node: $ => choice(
+      $.directive,
+      $.code_block,
+      $.functions_block,
+      $.section_block,
+      $.razor_anonymous_block,
+      $.control_structure,
+      $.explicit_expression,
+      $.implicit_expression,
+      $.razor_comment,
+      $.html_comment,
+      $.html_element,
+      $.html_self_closing_element,
+      $.html_void_element,
+      $.text_content,
+      $.razor_cs_statement,
+    ),
+
+    // C# statement in a template (control structure body) context
+    razor_cs_statement: $ => $.csharp_statement,
 
     // =========================================================================
     // Directives (supertype)
@@ -103,7 +126,7 @@ module.exports = grammar({
       '@', 'section',
       field('name', $.identifier),
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
@@ -137,7 +160,7 @@ module.exports = grammar({
       $.csharp_expression,
       ')',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
       repeat(choice($.razor_else_if, $.razor_else)),
     )),
@@ -149,14 +172,14 @@ module.exports = grammar({
       $.csharp_expression,
       ')',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
     razor_else: $ => seq(
       'else',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
@@ -166,7 +189,7 @@ module.exports = grammar({
       $.csharp_expression,
       ')',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
@@ -176,7 +199,7 @@ module.exports = grammar({
       $.csharp_expression,
       ')',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
@@ -186,14 +209,14 @@ module.exports = grammar({
       $.csharp_expression,
       ')',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
     razor_do_while: $ => seq(
       '@', 'do',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
       'while',
       '(',
@@ -217,8 +240,7 @@ module.exports = grammar({
         seq('case', alias($.switch_case_value, $.csharp_expression), ':'),
         seq('default', ':'),
       ),
-      repeat($._node),
-      optional(seq('break', ';')),
+      repeat($._template_node),
     ),
 
     switch_case_value: _ => token(prec(1, /[^:\n\r]+/)),
@@ -226,7 +248,7 @@ module.exports = grammar({
     razor_try: $ => seq(
       '@', 'try',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
       repeat($.catch_clause),
       optional($.finally_clause),
@@ -236,14 +258,14 @@ module.exports = grammar({
       'catch',
       optional(seq('(', $.csharp_expression, ')')),
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
     finally_clause: $ => seq(
       'finally',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
@@ -253,7 +275,7 @@ module.exports = grammar({
       $.csharp_expression,
       ')',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
@@ -268,7 +290,7 @@ module.exports = grammar({
       $.csharp_expression,
       ')',
       '{',
-      repeat($._node),
+      repeat($._template_node),
       '}',
     ),
 
