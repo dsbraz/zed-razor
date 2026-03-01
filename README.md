@@ -15,10 +15,13 @@ Razor (`.razor`, `.cshtml`) support for the [Zed editor](https://zed.dev) — sy
 
 ```
 zed-razor/
-├── extension/          # Zed extension (extension manifest, Rust LSP bridge, language queries)
-├── tree-sitter-razor/  # Tree-sitter grammar for Razor syntax
-└── lsp-razor/          # Language server documentation and configuration reference
+├── src/                # Rust LSP bridge (download + launch Roslyn)
+├── languages/razor/    # Language queries (.scm) and config
+├── lsp-razor/          # Language server documentation and configuration reference
+└── extension.toml      # Extension manifest
 ```
+
+The Tree-sitter grammar lives in a separate repository: [dsbraz/tree-sitter-razor](https://github.com/dsbraz/tree-sitter-razor).
 
 ## Installation
 
@@ -37,7 +40,7 @@ Search for **Razor** in Zed's extension browser (`Cmd+Shift+X`).
 
 3. Run `zed: install dev extension`
 
-4. Select the `zed-razor/extension/` directory
+4. Select the `zed-razor/` directory
 
 Zed will compile the Tree-sitter grammar to WASM and start downloading the Roslyn language server (~150 MB) in the background on first use.
 
@@ -73,11 +76,12 @@ Add to your Zed `settings.json` to customize language behavior:
 
 ## Contributing
 
-PRs are welcome. The repository has three independent components — contributions can target any of them:
+PRs are welcome. Contributions can target:
 
-- **`extension/`** — Zed integration: LSP download logic (`src/razor.rs`), language queries (`languages/razor/*.scm`)
-- **`tree-sitter-razor/`** — Parser grammar (`grammar.js`, `src/scanner.c`) and test corpus
-- **`lsp-razor/`** — Language server documentation
+- **LSP bridge** — `src/razor.rs` (download and launch logic)
+- **Language queries** — `languages/razor/*.scm` (highlighting, injections, indentation)
+- **Tree-sitter grammar** — [dsbraz/tree-sitter-razor](https://github.com/dsbraz/tree-sitter-razor)
+- **LSP docs** — `lsp-razor/README.md`
 
 ## License
 
