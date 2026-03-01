@@ -1,0 +1,6 @@
+name = "Razor"
+grammar = "razor"
+path_suffixes = ["razor", "cshtml"]
+line_comments = ["// "]
+block_comment = ["<!--", "-->"]
+tab_size = 4

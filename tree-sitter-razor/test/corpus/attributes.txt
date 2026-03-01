@@ -1,0 +1,154 @@
+================================================================================
+Razor directive attribute onclick
+================================================================================
+
+<button @onclick="IncrementCount"></button>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name)
+      (razor_directive_attribute
+        name: (directive_attribute_name)
+        value: (quoted_attribute_value
+          (attribute_value_content))))
+    (html_end_tag
+      name: (tag_name))))
+
+================================================================================
+Razor bind attribute
+================================================================================
+
+<input @bind="name" />
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_void_element
+    name: (tag_name)
+    (razor_directive_attribute
+      name: (directive_attribute_name)
+      value: (quoted_attribute_value
+        (attribute_value_content)))))
+
+================================================================================
+Razor bind with format
+================================================================================
+
+<input @bind="startDate" @bind:format="yyyy-MM-dd" />
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_void_element
+    name: (tag_name)
+    (razor_directive_attribute
+      name: (directive_attribute_name)
+      value: (quoted_attribute_value
+        (attribute_value_content)))
+    (razor_directive_attribute
+      name: (directive_attribute_name)
+      value: (quoted_attribute_value
+        (attribute_value_content)))))
+
+================================================================================
+Razor ref attribute
+================================================================================
+
+<input @ref="myInput" />
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_void_element
+    name: (tag_name)
+    (razor_directive_attribute
+      name: (directive_attribute_name)
+      value: (quoted_attribute_value
+        (attribute_value_content)))))
+
+================================================================================
+Mixed HTML and Razor attributes
+================================================================================
+
+<button class="btn" @onclick="Click" disabled></button>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name)
+      (html_attribute
+        name: (attribute_name)
+        value: (quoted_attribute_value
+          (attribute_value_content)))
+      (razor_directive_attribute
+        name: (directive_attribute_name)
+        value: (quoted_attribute_value
+          (attribute_value_content)))
+      (html_attribute
+        name: (attribute_name)))
+    (html_end_tag
+      name: (tag_name))))
+
+================================================================================
+Expression attribute value
+================================================================================
+
+<div class=@(isActive)></div>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name)
+      (html_attribute
+        name: (attribute_name)
+        value: (expression_attribute_value
+          (csharp_expression))))
+    (html_end_tag
+      name: (tag_name))))
+
+================================================================================
+Razor key attribute
+================================================================================
+
+<div @key="item.Id"></div>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name)
+      (razor_directive_attribute
+        name: (directive_attribute_name)
+        value: (quoted_attribute_value
+          (attribute_value_content))))
+    (html_end_tag
+      name: (tag_name))))
+
+================================================================================
+Event handler with prevention
+================================================================================
+
+<form @onsubmit="HandleSubmit" @onsubmit:preventDefault></form>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name)
+      (razor_directive_attribute
+        name: (directive_attribute_name)
+        value: (quoted_attribute_value
+          (attribute_value_content)))
+      (razor_directive_attribute
+        name: (directive_attribute_name)))
+    (html_end_tag
+      name: (tag_name))))

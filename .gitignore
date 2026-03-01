@@ -1,0 +1,16 @@
+# Rust build artifacts
+target/
+extension/target/
+
+# Zed extension runtime files (created during install/compilation)
+extension/grammars/
+extension/extension.wasm
+
+# tree-sitter build artifacts
+tree-sitter-razor/target/
+tree-sitter-razor/node_modules/
+tree-sitter-razor/build/
+tree-sitter-razor/bindings/
+
+# macOS
+.DS_Store

@@ -1,0 +1,305 @@
+================================================================================
+If statement
+================================================================================
+
+@if (showMessage)
+{
+    <p></p>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_if
+    (csharp_expression)
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))))
+
+================================================================================
+If-else statement
+================================================================================
+
+@if (isVisible)
+{
+    <p></p>
+}
+else
+{
+    <span></span>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_if
+    (csharp_expression)
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))
+    (razor_else
+      (html_element
+        (html_start_tag
+          name: (tag_name))
+        (html_end_tag
+          name: (tag_name))))))
+
+================================================================================
+If-else if-else statement
+================================================================================
+
+@if (count > 10)
+{
+    <p></p>
+}
+else if (count > 5)
+{
+    <span></span>
+}
+else
+{
+    <div></div>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_if
+    (csharp_expression)
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))
+    (razor_else_if
+      (csharp_expression)
+      (html_element
+        (html_start_tag
+          name: (tag_name))
+        (html_end_tag
+          name: (tag_name))))
+    (razor_else
+      (html_element
+        (html_start_tag
+          name: (tag_name))
+        (html_end_tag
+          name: (tag_name))))))
+
+================================================================================
+Foreach loop
+================================================================================
+
+@foreach (var item in items)
+{
+    <li></li>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_foreach
+    (csharp_expression)
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))))
+
+================================================================================
+For loop
+================================================================================
+
+@for (var i = 0; i < 10; i++)
+{
+    <span></span>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_for
+    (csharp_expression)
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))))
+
+================================================================================
+While loop
+================================================================================
+
+@while (count < 10)
+{
+    <p></p>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_while
+    (csharp_expression)
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))))
+
+================================================================================
+Switch statement
+================================================================================
+
+@switch (value)
+{
+    case 1:
+        <p></p>
+        break;
+    default:
+        <span></span>
+        break;
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_switch
+    (csharp_expression)
+    (switch_case
+      (csharp_expression)
+      (html_element
+        (html_start_tag
+          name: (tag_name))
+        (html_end_tag
+          name: (tag_name))))
+    (switch_case
+      (html_element
+        (html_start_tag
+          name: (tag_name))
+        (html_end_tag
+          name: (tag_name))))))
+
+================================================================================
+Try-catch
+================================================================================
+
+@try
+{
+    <p></p>
+}
+catch
+{
+    <span></span>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_try
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))
+    (catch_clause
+      (html_element
+        (html_start_tag
+          name: (tag_name))
+        (html_end_tag
+          name: (tag_name))))))
+
+================================================================================
+Try-catch-finally
+================================================================================
+
+@try
+{
+    <p></p>
+}
+catch (Exception ex)
+{
+    <span></span>
+}
+finally
+{
+    <div></div>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_try
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))
+    (catch_clause
+      (csharp_expression)
+      (html_element
+        (html_start_tag
+          name: (tag_name))
+        (html_end_tag
+          name: (tag_name))))
+    (finally_clause
+      (html_element
+        (html_start_tag
+          name: (tag_name))
+        (html_end_tag
+          name: (tag_name))))))
+
+================================================================================
+Lock statement
+================================================================================
+
+@lock (lockObject)
+{
+    <p></p>
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_lock
+    (csharp_expression)
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))))
+
+================================================================================
+Await expression
+================================================================================
+
+@await DoSomethingAsync()
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_await
+    (implicit_expression_content)))
+
+================================================================================
+Do-while loop
+================================================================================
+
+@do
+{
+    <p></p>
+}
+while (count < 10);
+
+--------------------------------------------------------------------------------
+
+(document
+  (razor_do_while
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))
+    (csharp_expression)))

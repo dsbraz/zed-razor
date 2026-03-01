@@ -1,0 +1,165 @@
+================================================================================
+Simple HTML element
+================================================================================
+
+<div></div>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name))
+    (html_end_tag
+      name: (tag_name))))
+
+================================================================================
+Self-closing element
+================================================================================
+
+<MyComponent />
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_self_closing_element
+    name: (tag_name)))
+
+================================================================================
+Void element
+================================================================================
+
+<br>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_void_element
+    name: (tag_name)))
+
+================================================================================
+Element with text content
+================================================================================
+
+<p>Hello World</p>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name))
+    (text_content)
+    (html_end_tag
+      name: (tag_name))))
+
+================================================================================
+Nested elements
+================================================================================
+
+<div><span></span></div>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name))
+    (html_element
+      (html_start_tag
+        name: (tag_name))
+      (html_end_tag
+        name: (tag_name)))
+    (html_end_tag
+      name: (tag_name))))
+
+================================================================================
+Element with attribute
+================================================================================
+
+<div class="container"></div>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name)
+      (html_attribute
+        name: (attribute_name)
+        value: (quoted_attribute_value
+          (attribute_value_content))))
+    (html_end_tag
+      name: (tag_name))))
+
+================================================================================
+Element with multiple attributes
+================================================================================
+
+<custom-tag type="text" name="field" />
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_self_closing_element
+    name: (tag_name)
+    (html_attribute
+      name: (attribute_name)
+      value: (quoted_attribute_value
+        (attribute_value_content)))
+    (html_attribute
+      name: (attribute_name)
+      value: (quoted_attribute_value
+        (attribute_value_content)))))
+
+================================================================================
+Void element with attributes
+================================================================================
+
+<img src="logo.png" alt="Logo">
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_void_element
+    name: (tag_name)
+    (html_attribute
+      name: (attribute_name)
+      value: (quoted_attribute_value
+        (attribute_value_content)))
+    (html_attribute
+      name: (attribute_name)
+      value: (quoted_attribute_value
+        (attribute_value_content)))))
+
+================================================================================
+Boolean attribute
+================================================================================
+
+<input disabled />
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_void_element
+    name: (tag_name)
+    (html_attribute
+      name: (attribute_name))))
+
+================================================================================
+Element with expression in text
+================================================================================
+
+<p>Count: @currentCount</p>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name))
+    (text_content)
+    (implicit_expression
+      (implicit_expression_content))
+    (html_end_tag
+      name: (tag_name))))

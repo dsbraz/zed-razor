@@ -1,0 +1,47 @@
+{
+  "name": "tree-sitter-razor",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for Razor (.razor/.cshtml) templates",
+  "main": "bindings/node",
+  "keywords": [
+    "tree-sitter",
+    "parser",
+    "razor",
+    "blazor",
+    "cshtml",
+    "asp.net"
+  ],
+  "author": "Daniel Braz <dsbraz@dsbraz.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dsbraz/zed-razor"
+  },
+  "files": [
+    "grammar.js",
+    "tree-sitter.json",
+    "src/**",
+    "queries/**"
+  ],
+  "dependencies": {
+    "nan": "^2.18.0"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.24.0"
+  },
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test",
+    "parse": "tree-sitter parse"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.razor",
+      "file-types": [
+        "razor",
+        "cshtml"
+      ],
+      "injection-regex": "^razor$"
+    }
+  ]
+}
