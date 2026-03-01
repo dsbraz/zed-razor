@@ -142,14 +142,19 @@ impl zed::Extension for RazorExtension {
         }
 
         let rid = Self::platform_rid()?;
+
+        // Relative path for WASM sandbox file ops (download, make_executable, metadata)
+        let server_dir_rel = Self::server_dir_name().to_string();
+
+        // Absolute path for Command args (process runs with project as cwd)
         let base_dir = std::env::current_dir()
             .map_err(|e| format!("Failed to get extension work dir: {e}"))?;
-        let server_dir = base_dir
-            .join(Self::server_dir_name())
+        let server_dir_abs = base_dir
+            .join(&server_dir_rel)
             .to_string_lossy()
             .into_owned();
 
-        // Check cache
+        // Check cache (stored as absolute)
         if let Some(ref cached) = self.cached_server_dir {
             let binary = Self::binary_path(cached, rid);
             if fs::metadata(&binary).is_ok_and(|m| m.is_file()) {
@@ -162,26 +167,27 @@ impl zed::Extension for RazorExtension {
             &zed::LanguageServerInstallationStatus::CheckingForUpdate,
         );
 
-        // Check if already downloaded
-        let binary = Self::binary_path(&server_dir, rid);
-        let razor_ext = format!(
-            "{server_dir}/.razorExtension/Microsoft.VisualStudioCode.RazorExtension.dll"
+        // Check/download using relative paths (WASM sandbox)
+        let binary_rel = Self::binary_path(&server_dir_rel, rid);
+        let razor_ext_rel = format!(
+            "{server_dir_rel}/.razorExtension/Microsoft.VisualStudioCode.RazorExtension.dll"
         );
-        let already_installed = fs::metadata(&binary).is_ok_and(|m| m.is_file())
-            && fs::metadata(&razor_ext).is_ok_and(|m| m.is_file());
+        let already_installed = fs::metadata(&binary_rel).is_ok_and(|m| m.is_file())
+            && fs::metadata(&razor_ext_rel).is_ok_and(|m| m.is_file());
 
         if !already_installed {
-            Self::download_server(language_server_id, rid, &server_dir)?;
-            Self::remove_outdated_servers(&server_dir)?;
+            Self::download_server(language_server_id, rid, &server_dir_rel)?;
+            Self::remove_outdated_servers(&server_dir_rel)?;
         }
 
-        // Make executable (no-op on Windows)
+        // make_file_executable requires relative path in WASM sandbox
         if !rid.starts_with("win-") {
-            zed::make_file_executable(&binary)?;
+            zed::make_file_executable(&binary_rel)?;
         }
 
-        self.cached_server_dir = Some(server_dir.clone());
-        Ok(Self::build_command(&server_dir, rid, user_args))
+        // Cache absolute path; build Command with absolute paths
+        self.cached_server_dir = Some(server_dir_abs.clone());
+        Ok(Self::build_command(&server_dir_abs, rid, user_args))
     }
 }
 
