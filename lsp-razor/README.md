@@ -1,21 +1,21 @@
 # LSP Razor
 
-Language Server usado pela extensão: **Roslyn Language Server** com Razor co-hosting.
+Language server used by this extension: **Roslyn Language Server** with Razor co-hosting.
 
-## Como funciona
+## How it works
 
-O [Roslyn Language Server](https://github.com/dotnet/roslyn) é o servidor LSP oficial da Microsoft para C#. Ele suporta Razor/Blazor através de um mecanismo de **co-hosting**: DLLs de extensão são carregadas pelo servidor Roslyn, habilitando suporte completo a arquivos `.razor` e `.cshtml`.
+The [Roslyn Language Server](https://github.com/dotnet/roslyn) is Microsoft's official LSP server for C#. It supports Razor/Blazor through a **co-hosting** mechanism: extension DLLs are loaded by the Roslyn server, enabling full support for `.razor` and `.cshtml` files.
 
-A extensão baixa automaticamente o servidor pré-compilado do repositório [Crashdummyy/roslynLanguageServer](https://github.com/Crashdummyy/roslynLanguageServer), que inclui:
-- `Microsoft.CodeAnalysis.LanguageServer` — binário do servidor Roslyn
-- `.razorExtension/` — DLLs de suporte a Razor:
+The extension automatically downloads the pre-built server from the [Crashdummyy/roslynLanguageServer](https://github.com/Crashdummyy/roslynLanguageServer) repository, which includes:
+- `Microsoft.CodeAnalysis.LanguageServer` — the Roslyn server binary
+- `.razorExtension/` — Razor support DLLs:
   - `Microsoft.CodeAnalysis.Razor.Compiler.dll`
   - `Microsoft.VisualStudioCode.RazorExtension.dll`
   - `Targets/Microsoft.NET.Sdk.Razor.DesignTime.targets`
 
-## Recursos suportados
+## Supported features
 
-| Recurso | Status |
+| Feature | Status |
 |---------|--------|
 | Completions | ✅ |
 | Diagnostics | ✅ |
@@ -29,7 +29,7 @@ A extensão baixa automaticamente o servidor pré-compilado do repositório [Cra
 | Code Actions | ✅ |
 | Semantic Highlighting | ✅ |
 
-## Comando de lançamento
+## Launch command
 
 ```bash
 ./Microsoft.CodeAnalysis.LanguageServer \
@@ -41,16 +41,16 @@ A extensão baixa automaticamente o servidor pré-compilado do repositório [Cra
   --extension .razorExtension/Microsoft.VisualStudioCode.RazorExtension.dll
 ```
 
-## Configuração customizada (settings.json do Zed)
+## Custom configuration (Zed settings.json)
 
-Para usar um binário próprio ou passar argumentos extras:
+To use a custom binary or pass extra arguments:
 
 ```json
 {
   "lsp": {
     "roslyn-razor": {
       "binary": {
-        "path": "/caminho/customizado/Microsoft.CodeAnalysis.LanguageServer",
+        "path": "/custom/path/Microsoft.CodeAnalysis.LanguageServer",
         "arguments": ["--logLevel", "Debug"]
       }
     }
@@ -58,15 +58,15 @@ Para usar um binário próprio ou passar argumentos extras:
 }
 ```
 
-## Onde o servidor é instalado
+## Installation directory
 
-O servidor é baixado automaticamente pelo Zed no diretório de trabalho da extensão:
+The server is downloaded automatically by Zed into the extension work directory:
 `~/Library/Application Support/Zed/extensions/work/razor/` (macOS)
 
-## Plataformas suportadas
+## Supported platforms
 
-| Plataforma | Identificador |
-|------------|---------------|
+| Platform | Identifier |
+|----------|------------|
 | macOS ARM64 | `osx-arm64` |
 | macOS x64 | `osx-x64` |
 | Linux x64 | `linux-x64` |
