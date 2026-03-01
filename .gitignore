@@ -1,10 +1,10 @@
 # Rust build artifacts
 target/
-extension/target/
 
 # Zed extension runtime files (created during install/compilation)
-extension/grammars/
-extension/extension.wasm
+grammars/
+extension.wasm
+extension/
 
 # tree-sitter build artifacts
 tree-sitter-razor/target/
