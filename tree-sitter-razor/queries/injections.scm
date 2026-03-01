@@ -18,5 +18,5 @@
   (implicit_expression_content) @injection.content
   (#set! injection.language "csharp"))
 
-(razor_cs_statement) @injection.content
-  (#set! injection.language "csharp")
+((razor_cs_statement) @injection.content
+  (#set! injection.language "csharp"))
