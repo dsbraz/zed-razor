@@ -357,11 +357,12 @@ module.exports = grammar({
     ),
 
     quoted_attribute_value: $ => choice(
-      seq('"', optional($.attribute_value_content), '"'),
-      seq("'", optional($.attribute_value_content), "'"),
+      seq('"', repeat(choice($.attribute_value_content, $.implicit_expression, $.explicit_expression)), '"'),
+      seq("'", repeat(choice($.attribute_value_content, $.implicit_expression, $.explicit_expression)), "'"),
     ),
 
-    attribute_value_content: _ => /[^"']+/,
+    // Stop at @, " and ' so Razor expressions can be parsed within attribute values
+    attribute_value_content: _ => /[^"'@]+/,
 
     expression_attribute_value: $ => seq(
       '@(',

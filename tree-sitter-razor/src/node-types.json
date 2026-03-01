@@ -784,11 +784,19 @@
     "named": true,
     "fields": {},
     "children": {
-      "multiple": false,
+      "multiple": true,
       "required": false,
       "types": [
         {
           "type": "attribute_value_content",
+          "named": true
+        },
+        {
+          "type": "explicit_expression",
+          "named": true
+        },
+        {
+          "type": "implicit_expression",
           "named": true
         }
       ]

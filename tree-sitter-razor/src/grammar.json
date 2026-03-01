@@ -1503,16 +1503,24 @@
               "value": "\""
             },
             {
-              "type": "CHOICE",
-              "members": [
-                {
-                  "type": "SYMBOL",
-                  "name": "attribute_value_content"
-                },
-                {
-                  "type": "BLANK"
-                }
-              ]
+              "type": "REPEAT",
+              "content": {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "attribute_value_content"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "implicit_expression"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "explicit_expression"
+                  }
+                ]
+              }
             },
             {
               "type": "STRING",
@@ -1528,16 +1536,24 @@
               "value": "'"
             },
             {
-              "type": "CHOICE",
-              "members": [
-                {
-                  "type": "SYMBOL",
-                  "name": "attribute_value_content"
-                },
-                {
-                  "type": "BLANK"
-                }
-              ]
+              "type": "REPEAT",
+              "content": {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "attribute_value_content"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "implicit_expression"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "explicit_expression"
+                  }
+                ]
+              }
             },
             {
               "type": "STRING",
@@ -1549,7 +1565,7 @@
     },
     "attribute_value_content": {
       "type": "PATTERN",
-      "value": "[^\"']+"
+      "value": "[^\"'@]+"
     },
     "expression_attribute_value": {
       "type": "SEQ",

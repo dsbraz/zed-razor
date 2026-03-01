@@ -152,3 +152,24 @@ Event handler with prevention
         name: (directive_attribute_name)))
     (html_end_tag
       name: (tag_name))))
+
+================================================================================
+Mixed attribute value with Razor expression containing strings
+================================================================================
+
+<div class="chip @(_show ? "active" : "")"></div>
+
+--------------------------------------------------------------------------------
+
+(document
+  (html_element
+    (html_start_tag
+      name: (tag_name)
+      (html_attribute
+        name: (attribute_name)
+        value: (quoted_attribute_value
+          (attribute_value_content)
+          (explicit_expression
+            (csharp_expression)))))
+    (html_end_tag
+      name: (tag_name))))
