@@ -11,8 +11,7 @@ kind = "Rust"
 version = "0.7.0"
 
 [grammars.razor]
-repository = "https://github.com/dsbraz/zed-razor"
-path = "tree-sitter-razor"
+repository = "https://github.com/dsbraz/tree-sitter-razor"
 rev = "main"
 
 [language_servers.roslyn-razor]
