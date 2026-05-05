@@ -16,7 +16,7 @@ rev = "main"
 
 [language_servers.roslyn-razor]
 language = "Razor"
-languages = []
+languages = ["Razor"]
 
 [language_servers.roslyn-razor.language_ids]
 "Razor" = "razor"
