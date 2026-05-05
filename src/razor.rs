@@ -62,10 +62,13 @@ impl RazorExtension {
 
         let log_dir = format!("{server_dir}/logs");
 
+        let csharp_design_time_path =
+            format!("{razor_ext_dir}/Targets/Microsoft.CSharpExtension.DesignTime.targets");
+
         let mut args = vec![
             "--stdio".into(),
             "--logLevel".into(),
-            "Information".into(),
+            "Warning".into(),
             "--extensionLogDirectory".into(),
             log_dir,
             "--razorSourceGenerator".into(),
@@ -75,6 +78,10 @@ impl RazorExtension {
             "--extension".into(),
             format!("{razor_ext_dir}/Microsoft.VisualStudioCode.RazorExtension.dll"),
         ];
+
+        if Path::new(&csharp_design_time_path).is_file() {
+            args.extend(["--csharpDesignTimePath".into(), csharp_design_time_path]);
+        }
 
         if let Some(extra) = user_args {
             args.extend(extra);

@@ -32,9 +32,38 @@ const HTML_FALLBACK_RESULTS = new Map([
   ["textDocument/signatureHelp", null],
 ]);
 
+const ROSLYN_CONFIGURATION_DEFAULTS = new Map([
+  ["csharp|background_analysis.dotnet_analyzer_diagnostics_scope", "none"],
+  [
+    "visual_basic|background_analysis.dotnet_analyzer_diagnostics_scope",
+    "none",
+  ],
+  ["csharp|background_analysis.dotnet_compiler_diagnostics_scope", "openFiles"],
+  [
+    "visual_basic|background_analysis.dotnet_compiler_diagnostics_scope",
+    "openFiles",
+  ],
+  [
+    "csharp|completion.dotnet_show_completion_items_from_unimported_namespaces",
+    false,
+  ],
+  [
+    "visual_basic|completion.dotnet_show_completion_items_from_unimported_namespaces",
+    false,
+  ],
+  ["csharp|code_lens.dotnet_enable_references_code_lens", false],
+  ["visual_basic|code_lens.dotnet_enable_references_code_lens", false],
+  ["csharp|code_lens.dotnet_enable_tests_code_lens", false],
+  ["visual_basic|code_lens.dotnet_enable_tests_code_lens", false],
+  ["projects.dotnet_enable_file_based_programs", false],
+  ["projects.dotnet_enable_file_based_programs_when_ambiguous", false],
+]);
+
 const options = parseArgs(process.argv.slice(2));
 const logFile = options.log ? path.resolve(options.log) : undefined;
-const workspaceRoot = options.workspace ? path.resolve(options.workspace) : process.cwd();
+const workspaceRoot = options.workspace
+  ? path.resolve(options.workspace)
+  : process.cwd();
 const htmlDocuments = new Map();
 const pendingServerRequests = new Map();
 let nextProxyRequestId = 1;
@@ -150,7 +179,9 @@ function createLspReader(stream, onMessage, peerName) {
         return;
       }
 
-      const payload = buffer.subarray(messageStart, messageEnd).toString("utf8");
+      const payload = buffer
+        .subarray(messageStart, messageEnd)
+        .toString("utf8");
       buffer = buffer.subarray(messageEnd);
 
       try {
@@ -168,6 +199,7 @@ function createLspReader(stream, onMessage, peerName) {
 
 function handleClientMessage(message) {
   if (message?.method === "initialize") {
+    ensureWorkspaceConfigurationCapability(message);
     const rootFromClient = getRootFromInitialize(message.params);
     if (rootFromClient) {
       log(`Client initialize root: ${rootFromClient}`);
@@ -209,7 +241,8 @@ function handleRoslynServerRequest(message) {
   const hasId = Object.hasOwn(message, "id");
 
   if (message.method === "razor/log") {
-    const logMessage = message.params?.message ?? JSON.stringify(message.params);
+    const logMessage =
+      message.params?.message ?? JSON.stringify(message.params);
     log(`[razor] ${logMessage}`);
     if (hasId) {
       respondToServer(message.id, true);
@@ -259,7 +292,17 @@ function handleRoslynServerRequest(message) {
     return true;
   }
 
-  if (HTML_FALLBACK_RESULTS.has(message.method) && isRazorHtmlForward(message.params)) {
+  if (message.method === "workspace/configuration") {
+    if (hasId) {
+      respondToServer(message.id, getWorkspaceConfiguration(message.params));
+    }
+    return true;
+  }
+
+  if (
+    HTML_FALLBACK_RESULTS.has(message.method) &&
+    isRazorHtmlForward(message.params)
+  ) {
     log(`Using HTML fallback for ${message.method}`);
     if (hasId) {
       respondToServer(message.id, HTML_FALLBACK_RESULTS.get(message.method));
@@ -295,7 +338,9 @@ function openWorkspaceInRoslyn() {
       jsonrpc: "2.0",
       method: "project/open",
       params: {
-        projects: discovery.projects.map((projectPath) => pathToFileURL(projectPath).href),
+        projects: discovery.projects.map(
+          (projectPath) => pathToFileURL(projectPath).href,
+        ),
       },
     });
     return;
@@ -316,14 +361,19 @@ function discoverWorkspace(root) {
     try {
       entries = fs.readdirSync(current.directory, { withFileTypes: true });
     } catch (error) {
-      log(`Skipping unreadable directory ${current.directory}: ${error.message}`);
+      log(
+        `Skipping unreadable directory ${current.directory}: ${error.message}`,
+      );
       continue;
     }
 
     for (const entry of entries) {
       const fullPath = path.join(current.directory, entry.name);
       if (entry.isDirectory()) {
-        if (!DEFAULT_EXCLUDED_DIRS.has(entry.name) && current.depth < maxDepth) {
+        if (
+          !DEFAULT_EXCLUDED_DIRS.has(entry.name) &&
+          current.depth < maxDepth
+        ) {
           stack.push({ directory: fullPath, depth: current.depth + 1 });
         }
         continue;
@@ -333,7 +383,11 @@ function discoverWorkspace(root) {
         continue;
       }
 
-      if (entry.name.endsWith(".sln") || entry.name.endsWith(".slnx")) {
+      if (
+        entry.name.endsWith(".sln") ||
+        entry.name.endsWith(".slnx") ||
+        entry.name.endsWith(".slnf")
+      ) {
         solutions.push(fullPath);
       } else if (entry.name.endsWith(".csproj")) {
         projects.push(fullPath);
@@ -357,6 +411,22 @@ function compareProjectPath(left, right) {
     return leftDepth - rightDepth;
   }
   return left.localeCompare(right);
+}
+
+function getWorkspaceConfiguration(params) {
+  const items = Array.isArray(params?.items) ? params.items : [];
+  return items.map((item) => {
+    const section = item?.section;
+    if (
+      typeof section === "string" &&
+      ROSLYN_CONFIGURATION_DEFAULTS.has(section)
+    ) {
+      const value = ROSLYN_CONFIGURATION_DEFAULTS.get(section);
+      log(`Roslyn configuration ${section}=${value}`);
+      return value;
+    }
+    return null;
+  });
 }
 
 function requestServer(method, params) {
@@ -405,7 +475,16 @@ function isResponse(message) {
 }
 
 function isRazorHtmlForward(params) {
-  return Boolean(params?.textDocument?.uri && params?.checksum && params?.request);
+  return Boolean(
+    params?.textDocument?.uri && params?.checksum && params?.request,
+  );
+}
+
+function ensureWorkspaceConfigurationCapability(message) {
+  message.params ??= {};
+  message.params.capabilities ??= {};
+  message.params.capabilities.workspace ??= {};
+  message.params.capabilities.workspace.configuration = true;
 }
 
 function getRootFromInitialize(params) {
@@ -431,7 +510,11 @@ function log(message) {
 
   try {
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
-    fs.appendFileSync(logFile, `${new Date().toISOString()} ${message}\n`, "utf8");
+    fs.appendFileSync(
+      logFile,
+      `${new Date().toISOString()} ${message}\n`,
+      "utf8",
+    );
   } catch {
     // Never write logs to stdout: stdout is reserved for LSP framing.
   }
