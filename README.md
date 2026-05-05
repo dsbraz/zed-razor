@@ -9,6 +9,7 @@ Razor (`.razor`, `.cshtml`) support for the [Zed editor](https://zed.dev) — sy
 - **Bracket Matching** — `{}`, `()`, `[]`, `<>`, `<!-- -->` and `@* *@`
 - **Auto-Indentation** — Smart indentation for HTML elements and C# blocks
 - **Code Outline** — Navigate directives, `@code` blocks, sections and components
+- **Partial Language Completions** — Initial completion support for Razor and embedded C# language contexts
 - **Language Server (LSP)** — Completions, diagnostics, hover, go-to-definition, find references, rename, formatting, inlay hints and code actions via Roslyn + Razor co-hosting (downloaded automatically)
 
 ## Repository Structure

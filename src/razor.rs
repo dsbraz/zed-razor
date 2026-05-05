@@ -7,7 +7,7 @@ const SERVER_ID: &str = "roslyn-razor";
 const GITHUB_RELEASES_BASE: &str =
     "https://github.com/Crashdummyy/roslynLanguageServer/releases/latest/download";
 const SERVER_BINARY: &str = "Microsoft.CodeAnalysis.LanguageServer";
-const PROXY_SCRIPT_NAME: &str = "razor-lsp-proxy.mjs";
+const PROXY_SCRIPT_NAME: &str = "proxy.mjs";
 const PROXY_SCRIPT: &str = include_str!("../lsp-razor/proxy.mjs");
 
 struct RazorExtension {

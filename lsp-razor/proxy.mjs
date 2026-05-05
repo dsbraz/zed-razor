@@ -4,7 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { getHtmlCompletion } from "./getHtmlCompletion.mjs";
+
+const COMPLETION_ITEM_KIND_CLASS = 7;
 
 const DEFAULT_EXCLUDED_DIRS = new Set([
   ".git",
@@ -316,6 +317,7 @@ const workspaceRoot = options.workspace
   : process.cwd();
 export const htmlDocuments = new Map();
 const pendingServerRequests = new Map();
+const pendingClientCompletionRequestIds = new Set();
 let nextProxyRequestId = 1;
 let serverExited = false;
 let workspaceOpened = false;
@@ -456,6 +458,13 @@ function handleClientMessage(message) {
     }
   }
 
+  if (
+    message?.method === "textDocument/completion" &&
+    Object.hasOwn(message, "id")
+  ) {
+    pendingClientCompletionRequestIds.add(String(message.id));
+  }
+
   writeMessage(server.stdin, message);
 
   if (message?.method === "initialized") {
@@ -472,6 +481,16 @@ function handleServerMessage(message) {
     const pending = pendingServerRequests.get(String(message.id));
     pendingServerRequests.delete(String(message.id));
     pending(message);
+    return;
+  }
+
+  if (
+    isResponse(message) &&
+    pendingClientCompletionRequestIds.has(String(message.id))
+  ) {
+    pendingClientCompletionRequestIds.delete(String(message.id));
+    normalizeCompletionKinds(message);
+    writeMessage(process.stdout, message);
     return;
   }
 
@@ -572,6 +591,176 @@ function handleRoslynServerRequest(message) {
   }
 
   return false;
+}
+
+function getHtmlCompletion(params) {
+  const documentUri = params?.textDocument?.uri;
+  const checksum = params?.checksum;
+  const request = params?.request ?? {};
+  const htmlText =
+    documentUri && checksum
+      ? htmlDocuments.get(`${documentUri}:${checksum}`)
+      : undefined;
+  const position = request.position ?? params?.position;
+  const offset =
+    typeof htmlText === "string" && position
+      ? positionToOffset(htmlText, position)
+      : undefined;
+  const context =
+    typeof htmlText === "string" && offset !== undefined
+      ? getHtmlCompletionContext(htmlText, offset)
+      : { kind: "tag" };
+
+  if (context.kind === "attribute-value") {
+    return { isIncomplete: false, items: [] };
+  }
+
+  if (context.kind === "attribute") {
+    return {
+      isIncomplete: false,
+      items: getHtmlAttributeNames(context.tagName).map(
+        createHtmlAttributeCompletion,
+      ),
+    };
+  }
+
+  return {
+    isIncomplete: false,
+    items: HTML_TAGS.map(createHtmlTagCompletion),
+  };
+}
+
+function getHtmlCompletionContext(htmlText, offset) {
+  const before = htmlText.slice(0, offset);
+  const lastLt = before.lastIndexOf("<");
+  const lastGt = before.lastIndexOf(">");
+
+  if (lastLt <= lastGt) {
+    return { kind: "tag" };
+  }
+
+  const fragment = before.slice(lastLt + 1);
+  if (isInsideQuotedAttributeValue(fragment)) {
+    return { kind: "attribute-value" };
+  }
+
+  if (/^\/?\s*[\w:-]*$/.test(fragment)) {
+    return { kind: "tag" };
+  }
+
+  const tagName = /^\/?\s*([A-Za-z][\w:-]*)/.exec(fragment)?.[1]?.toLowerCase();
+  if (
+    !tagName ||
+    fragment.trimStart().startsWith("!") ||
+    fragment.trimStart().startsWith("?")
+  ) {
+    return { kind: "tag" };
+  }
+
+  return { kind: "attribute", tagName };
+}
+
+function getHtmlAttributeNames(tagName) {
+  const tagAttributes = HTML_TAG_ATTRIBUTES[tagName] ?? [];
+  return [...new Set([...HTML_GLOBAL_ATTRIBUTES, ...tagAttributes])].sort();
+}
+
+function createHtmlTagCompletion(tagName) {
+  return {
+    label: tagName,
+    kind: 10,
+    detail: "HTML element",
+    sortText: `html-tag-${tagName}`,
+    data: { source: "zed-razor-html" },
+  };
+}
+
+function createHtmlAttributeCompletion(attributeName) {
+  const isBoolean = isBooleanHtmlAttribute(attributeName);
+  return {
+    label: attributeName,
+    kind: 10,
+    detail: "HTML attribute",
+    insertText: isBoolean ? attributeName : `${attributeName}="$1"`,
+    insertTextFormat: isBoolean ? 1 : 2,
+    sortText: `html-attr-${attributeName}`,
+    data: { source: "zed-razor-html" },
+  };
+}
+
+function isBooleanHtmlAttribute(attributeName) {
+  return HTML_BOOLEAN_ATTRIBUTES.has(attributeName);
+}
+
+function isInsideQuotedAttributeValue(fragment) {
+  let quote = undefined;
+  for (const char of fragment) {
+    if (quote) {
+      if (char === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+    }
+  }
+
+  return quote !== undefined;
+}
+
+function positionToOffset(text, position) {
+  const line = Number(position.line);
+  const character = Number(position.character);
+  if (
+    !Number.isInteger(line) ||
+    !Number.isInteger(character) ||
+    line < 0 ||
+    character < 0
+  ) {
+    return undefined;
+  }
+
+  let offset = 0;
+  let currentLine = 0;
+  while (currentLine < line) {
+    const nextLine = text.indexOf("\n", offset);
+    if (nextLine === -1) {
+      return text.length;
+    }
+    offset = nextLine + 1;
+    currentLine += 1;
+  }
+
+  return Math.min(offset + character, text.length);
+}
+
+function normalizeCompletionKinds(message) {
+  const items = getCompletionItems(message?.result);
+  if (!items) {
+    return;
+  }
+
+  for (const item of items) {
+    if (isPascalCaseCompletionLabel(item?.label)) {
+      item.kind = COMPLETION_ITEM_KIND_CLASS;
+    }
+  }
+}
+
+function getCompletionItems(result) {
+  if (Array.isArray(result)) {
+    return result;
+  }
+  if (Array.isArray(result?.items)) {
+    return result.items;
+  }
+  return undefined;
+}
+
+function isPascalCaseCompletionLabel(label) {
+  return typeof label === "string" && /^[A-Z][A-Za-z0-9_-]*$/.test(label);
 }
 
 function openWorkspaceInRoslyn() {
