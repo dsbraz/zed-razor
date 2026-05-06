@@ -33,7 +33,7 @@ const HTML_FALLBACK_RESULTS = new Map([
   ["textDocument/signatureHelp", null],
 ]);
 
-export const HTML_TAGS = [
+const HTML_TAGS = [
   "a",
   "abbr",
   "address",
@@ -138,7 +138,7 @@ export const HTML_TAGS = [
   "video",
 ];
 
-export const HTML_GLOBAL_ATTRIBUTES = [
+const HTML_GLOBAL_ATTRIBUTES = [
   "accesskey",
   "autofocus",
   "class",
@@ -161,7 +161,7 @@ export const HTML_GLOBAL_ATTRIBUTES = [
   "translate",
 ];
 
-export const HTML_TAG_ATTRIBUTES = {
+const HTML_TAG_ATTRIBUTES = {
   a: ["download", "href", "hreflang", "rel", "target", "type"],
   audio: ["autoplay", "controls", "loop", "muted", "preload", "src"],
   button: ["disabled", "form", "name", "type", "value"],
@@ -259,7 +259,7 @@ export const HTML_TAG_ATTRIBUTES = {
   ],
 };
 
-export const HTML_BOOLEAN_ATTRIBUTES = new Set([
+const HTML_BOOLEAN_ATTRIBUTES = new Set([
   "async",
   "autofocus",
   "autoplay",
@@ -315,7 +315,7 @@ const logFile = options.log ? path.resolve(options.log) : undefined;
 const workspaceRoot = options.workspace
   ? path.resolve(options.workspace)
   : process.cwd();
-export const htmlDocuments = new Map();
+const htmlDocuments = new Map();
 const pendingServerRequests = new Map();
 const pendingClientCompletionRequestIds = new Set();
 let nextProxyRequestId = 1;
@@ -903,14 +903,6 @@ function respondToServer(id, result) {
     jsonrpc: "2.0",
     id,
     result,
-  });
-}
-
-function respondToServerError(id, error) {
-  writeMessage(server.stdin, {
-    jsonrpc: "2.0",
-    id,
-    error,
   });
 }
 
