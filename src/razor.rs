@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 
 use zed_extension_api::{self as zed, settings::LspSettings, LanguageServerId, Result};
 
@@ -6,6 +7,8 @@ const SERVER_ID: &str = "roslyn-razor";
 const GITHUB_RELEASES_BASE: &str =
     "https://github.com/Crashdummyy/roslynLanguageServer/releases/latest/download";
 const SERVER_BINARY: &str = "Microsoft.CodeAnalysis.LanguageServer";
+const PROXY_SCRIPT_NAME: &str = "proxy.mjs";
+const PROXY_SCRIPT: &str = include_str!("../lsp-razor/proxy.mjs");
 
 struct RazorExtension {
     cached_server_dir: Option<String>,
@@ -46,9 +49,7 @@ impl RazorExtension {
             &zed::LanguageServerInstallationStatus::Downloading,
         );
 
-        let url = format!(
-            "{GITHUB_RELEASES_BASE}/microsoft.codeanalysis.languageserver.{rid}.zip"
-        );
+        let url = format!("{GITHUB_RELEASES_BASE}/microsoft.codeanalysis.languageserver.{rid}.zip");
 
         zed::download_file(&url, server_dir, zed::DownloadedFileType::Zip)
             .map_err(|e| format!("Failed to download roslyn-razor server: {e}"))?;
@@ -56,16 +57,18 @@ impl RazorExtension {
         Ok(())
     }
 
-    fn build_command(server_dir: &str, rid: &str, user_args: Option<Vec<String>>) -> zed::Command {
-        let binary = Self::binary_path(server_dir, rid);
+    fn server_args(server_dir: &str, user_args: Option<Vec<String>>) -> Vec<String> {
         let razor_ext_dir = format!("{server_dir}/.razorExtension");
 
         let log_dir = format!("{server_dir}/logs");
 
+        let csharp_design_time_path =
+            format!("{razor_ext_dir}/Targets/Microsoft.CSharpExtension.DesignTime.targets");
+
         let mut args = vec![
             "--stdio".into(),
             "--logLevel".into(),
-            "Information".into(),
+            "Warning".into(),
             "--extensionLogDirectory".into(),
             log_dir,
             "--razorSourceGenerator".into(),
@@ -76,26 +79,55 @@ impl RazorExtension {
             format!("{razor_ext_dir}/Microsoft.VisualStudioCode.RazorExtension.dll"),
         ];
 
+        if Path::new(&csharp_design_time_path).is_file() {
+            args.extend(["--csharpDesignTimePath".into(), csharp_design_time_path]);
+        }
+
         if let Some(extra) = user_args {
             args.extend(extra);
         }
 
-        // On Windows and non-native platforms, use dotnet exec
-        if rid == "any" {
-            let mut dotnet_args = vec!["exec".into(), binary];
-            dotnet_args.extend(args);
-            return zed::Command {
-                command: "dotnet".into(),
-                args: dotnet_args,
-                env: Default::default(),
-            };
-        }
+        args
+    }
 
-        zed::Command {
-            command: binary,
+    fn write_proxy_script(server_dir_rel: &str, server_dir_abs: &str) -> Result<String> {
+        fs::create_dir_all(server_dir_rel)
+            .map_err(|e| format!("Failed to create roslyn-razor server directory: {e}"))?;
+
+        let proxy_rel = format!("{server_dir_rel}/{PROXY_SCRIPT_NAME}");
+        fs::write(&proxy_rel, PROXY_SCRIPT)
+            .map_err(|e| format!("Failed to write razor LSP proxy: {e}"))?;
+
+        Ok(Path::new(server_dir_abs)
+            .join(PROXY_SCRIPT_NAME)
+            .to_string_lossy()
+            .into_owned())
+    }
+
+    fn build_proxy_command(
+        proxy_script: String,
+        workspace_root: String,
+        log_file: String,
+        server_command: String,
+        server_args: Vec<String>,
+    ) -> Result<zed::Command> {
+        let mut args = vec![
+            proxy_script,
+            "--workspace".into(),
+            workspace_root,
+            "--log".into(),
+            log_file,
+            "--server".into(),
+            server_command,
+            "--".into(),
+        ];
+        args.extend(server_args);
+
+        Ok(zed::Command {
+            command: zed::node_binary_path()?,
             args,
             env: Default::default(),
-        }
+        })
     }
 
     fn remove_outdated_servers(current_dir: &str) -> Result<()> {
@@ -124,41 +156,61 @@ impl zed::Extension for RazorExtension {
         language_server_id: &LanguageServerId,
         worktree: &zed::Worktree,
     ) -> Result<zed::Command> {
-        // Allow user to override with a custom binary
-        let binary_settings = LspSettings::for_worktree(SERVER_ID, worktree)
-            .ok()
-            .and_then(|s| s.binary);
-
-        let user_args = binary_settings
-            .as_ref()
-            .and_then(|b| b.arguments.clone());
-
-        if let Some(custom_path) = binary_settings.and_then(|b| b.path) {
-            return Ok(zed::Command {
-                command: custom_path,
-                args: user_args.unwrap_or_default(),
-                env: Default::default(),
-            });
-        }
-
-        let rid = Self::platform_rid()?;
-
         // Relative path for WASM sandbox file ops (download, make_executable, metadata)
         let server_dir_rel = Self::server_dir_name().to_string();
 
-        // Absolute path for Command args (process runs with project as cwd)
+        // Absolute path for Command args.
         let base_dir = std::env::current_dir()
             .map_err(|e| format!("Failed to get extension work dir: {e}"))?;
         let server_dir_abs = base_dir
             .join(&server_dir_rel)
             .to_string_lossy()
             .into_owned();
+        let proxy_script = Self::write_proxy_script(&server_dir_rel, &server_dir_abs)?;
+        let log_dir_rel = format!("{server_dir_rel}/logs");
+        let log_dir_abs = Path::new(&server_dir_abs)
+            .join("logs")
+            .to_string_lossy()
+            .into_owned();
+        fs::create_dir_all(&log_dir_rel)
+            .map_err(|e| format!("Failed to create roslyn-razor log directory: {e}"))?;
+        let proxy_log_file = Path::new(&log_dir_abs)
+            .join("proxy.log")
+            .to_string_lossy()
+            .into_owned();
+        let workspace_root = worktree.root_path();
+
+        // Allow user to override with a custom binary
+        let binary_settings = LspSettings::for_worktree(SERVER_ID, worktree)
+            .ok()
+            .and_then(|s| s.binary);
+
+        let user_args = binary_settings.as_ref().and_then(|b| b.arguments.clone());
+
+        if let Some(custom_path) = binary_settings.and_then(|b| b.path) {
+            return Self::build_proxy_command(
+                proxy_script,
+                workspace_root,
+                proxy_log_file,
+                custom_path,
+                user_args.unwrap_or_default(),
+            );
+        }
+
+        let rid = Self::platform_rid()?;
 
         // Check cache (stored as absolute)
         if let Some(ref cached) = self.cached_server_dir {
             let binary = Self::binary_path(cached, rid);
             if fs::metadata(&binary).is_ok_and(|m| m.is_file()) {
-                return Ok(Self::build_command(cached, rid, user_args));
+                let server_args = Self::server_args(cached, user_args);
+                return Self::build_proxy_command(
+                    proxy_script,
+                    workspace_root,
+                    proxy_log_file,
+                    binary,
+                    server_args,
+                );
             }
         }
 
@@ -187,7 +239,15 @@ impl zed::Extension for RazorExtension {
 
         // Cache absolute path; build Command with absolute paths
         self.cached_server_dir = Some(server_dir_abs.clone());
-        Ok(Self::build_command(&server_dir_abs, rid, user_args))
+        let binary = Self::binary_path(&server_dir_abs, rid);
+        let server_args = Self::server_args(&server_dir_abs, user_args);
+        Self::build_proxy_command(
+            proxy_script,
+            workspace_root,
+            proxy_log_file,
+            binary,
+            server_args,
+        )
     }
 }
 

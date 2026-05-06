@@ -85,11 +85,19 @@
 ; Component references (PascalCase tags)
 ((html_start_tag
   name: (tag_name) @type)
-  (#match? @type "^[A-Z]"))
+  (#match? @type "^[A-Z][A-Za-z0-9._-]*$"))
+
+((html_end_tag
+  name: (tag_name) @type)
+  (#match? @type "^[A-Z][A-Za-z0-9._-]*$"))
 
 ((html_self_closing_element
   name: (tag_name) @type)
-  (#match? @type "^[A-Z]"))
+  (#match? @type "^[A-Z][A-Za-z0-9._-]*$"))
+
+((html_void_element
+  name: (tag_name) @type)
+  (#match? @type "^[A-Z][A-Za-z0-9._-]*$"))
 
 ; ---------------------------------------------------------------------------
 ; HTML Attributes
