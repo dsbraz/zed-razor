@@ -7,6 +7,21 @@ const GITHUB_RELEASES_BASE: &str =
     "https://github.com/Crashdummyy/roslynLanguageServer/releases/latest/download";
 const SERVER_BINARY: &str = "Microsoft.CodeAnalysis.LanguageServer";
 
+// The Razor extension must live in its own directory. If it sits next to the Roslyn
+// assemblies, its load context loads a second Microsoft.CodeAnalysis, so the Razor
+// source generator (loaded as an analyzer) fails Roslyn's [Generator] attribute check,
+// is never discovered, and every Razor request fails with "Couldn't get a source
+// generator run result".
+const RAZOR_EXT_DIR: &str = "razor-extension";
+const RAZOR_EXT_DLL: &str = "Microsoft.VisualStudioCode.RazorExtension.dll";
+const RAZOR_DLLS: [&str; 5] = [
+    RAZOR_EXT_DLL,
+    "Microsoft.CodeAnalysis.Razor.Compiler.dll",
+    "Microsoft.CodeAnalysis.Razor.Workspaces.dll",
+    "Microsoft.CodeAnalysis.Remote.Razor.dll",
+    "Microsoft.AspNetCore.Razor.Utilities.Shared.dll",
+];
+
 struct RazorExtension {
     cached_server_dir: Option<String>,
 }
@@ -56,24 +71,36 @@ impl RazorExtension {
         Ok(())
     }
 
+    /// Copies the Razor assemblies into `RAZOR_EXT_DIR`. The originals stay in the server
+    /// root: the server's own MEF composition still has to resolve
+    /// `Microsoft.VisualStudioCode.RazorExtension` from there.
+    fn copy_razor_dlls(server_dir: &str) -> Result<()> {
+        let ext_dir = format!("{server_dir}/{RAZOR_EXT_DIR}");
+        fs::create_dir_all(&ext_dir).map_err(|e| format!("Failed to create {ext_dir}: {e}"))?;
+
+        for dll in RAZOR_DLLS {
+            fs::copy(format!("{server_dir}/{dll}"), format!("{ext_dir}/{dll}"))
+                .map_err(|e| format!("Failed to copy {dll} into {RAZOR_EXT_DIR}: {e}"))?;
+        }
+        Ok(())
+    }
+
     fn build_command(server_dir: &str, rid: &str, user_args: Option<Vec<String>>) -> zed::Command {
         let binary = Self::binary_path(server_dir, rid);
-        let razor_ext_dir = format!("{server_dir}/.razorExtension");
-
         let log_dir = format!("{server_dir}/logs");
 
+        // --razorSourceGenerator/--razorDesignTimePath were dropped by newer server builds;
+        // the Razor extension (copied into its own directory by copy_razor_dlls) carries the
+        // Razor compiler.
         let mut args = vec![
             "--stdio".into(),
+            "--autoLoadProjects".into(),
             "--logLevel".into(),
             "Information".into(),
             "--extensionLogDirectory".into(),
             log_dir,
-            "--razorSourceGenerator".into(),
-            format!("{razor_ext_dir}/Microsoft.CodeAnalysis.Razor.Compiler.dll"),
-            "--razorDesignTimePath".into(),
-            format!("{razor_ext_dir}/Targets/Microsoft.NET.Sdk.Razor.DesignTime.targets"),
             "--extension".into(),
-            format!("{razor_ext_dir}/Microsoft.VisualStudioCode.RazorExtension.dll"),
+            format!("{server_dir}/{RAZOR_EXT_DIR}/{RAZOR_EXT_DLL}"),
         ];
 
         if let Some(extra) = user_args {
@@ -169,14 +196,14 @@ impl zed::Extension for RazorExtension {
 
         // Check/download using relative paths (WASM sandbox)
         let binary_rel = Self::binary_path(&server_dir_rel, rid);
-        let razor_ext_rel = format!(
-            "{server_dir_rel}/.razorExtension/Microsoft.VisualStudioCode.RazorExtension.dll"
-        );
-        let already_installed = fs::metadata(&binary_rel).is_ok_and(|m| m.is_file())
-            && fs::metadata(&razor_ext_rel).is_ok_and(|m| m.is_file());
+        let razor_ext_rel = format!("{server_dir_rel}/{RAZOR_EXT_DIR}/{RAZOR_EXT_DLL}");
+        let already_installed = [&binary_rel, &razor_ext_rel]
+            .iter()
+            .all(|p| fs::metadata(p).is_ok_and(|m| m.is_file()));
 
         if !already_installed {
             Self::download_server(language_server_id, rid, &server_dir_rel)?;
+            Self::copy_razor_dlls(&server_dir_rel)?;
             Self::remove_outdated_servers(&server_dir_rel)?;
         }
 

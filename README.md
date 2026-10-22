@@ -50,6 +50,8 @@ The extension automatically downloads the [Roslyn Language Server](https://githu
 
 Supported platforms: macOS (ARM64, x64), Linux (x64, ARM64), Windows (x64, ARM64).
 
+After downloading, the extension copies the Razor assemblies into `razor-extension/` (the server's Razor extension must not share a directory with the Roslyn assemblies, otherwise the Razor source generator is never discovered).
+
 For manual configuration options, see [`lsp-razor/README.md`](lsp-razor/README.md).
 
 ## Configuration
