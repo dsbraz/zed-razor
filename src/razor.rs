@@ -7,6 +7,47 @@ const GITHUB_RELEASES_BASE: &str =
     "https://github.com/Crashdummyy/roslynLanguageServer/releases/latest/download";
 const SERVER_BINARY: &str = "Microsoft.CodeAnalysis.LanguageServer";
 
+// The Razor extension must live in its own directory. If it sits next to the Roslyn
+// assemblies, its load context loads a second Microsoft.CodeAnalysis, so the Razor
+// source generator (loaded as an analyzer) fails Roslyn's [Generator] attribute check,
+// is never discovered, and every Razor request fails with "Couldn't get a source
+// generator run result".
+const RAZOR_EXT_DIR: &str = "razor-extension";
+const RAZOR_EXT_DLL: &str = "Microsoft.VisualStudioCode.RazorExtension.dll";
+const RAZOR_DLLS: [&str; 5] = [
+    RAZOR_EXT_DLL,
+    "Microsoft.CodeAnalysis.Razor.Compiler.dll",
+    "Microsoft.CodeAnalysis.Razor.Workspaces.dll",
+    "Microsoft.CodeAnalysis.Remote.Razor.dll",
+    "Microsoft.AspNetCore.Razor.Utilities.Shared.dll",
+];
+
+// The server's design-time polyfill only adds .razor files and the Razor generator to
+// projects that do not use the Razor SDK. Razor SDK projects targeting < net6.0 turn the
+// source generator off (UseRazorSourceGenerator=false), so they need it as well.
+const TARGETS_FILE: &str = "Targets/Microsoft.CSharpExtension.DesignTime.targets";
+const TARGETS_FILE_PATCHED: &str = "Targets/Microsoft.CSharpExtension.DesignTime.Zed.targets";
+const TARGETS_CONDITION: &str = "'$(UsingMicrosoftNETSdkRazor)' != 'true'";
+const TARGETS_CONDITION_PATCHED: &str = "'$(UseRazorSourceGenerator)' != 'true'";
+// Without the Razor SDK's source-generator targets nothing hands RootNamespace and the
+// project directory to the generator, so every component lands in the wrong namespace
+// and its code-behind base class (`@inherits FooBase`) is not found.
+// Below C# 10 the generator cannot emit `#line (l,c)-(l,c)` pragmas and falls back to
+// plain `#line N`, whose source mappings point bare `@expr` in markup at `__builder`
+// (hover/definition break). Razor SDK projects targeting < net6.0 default to C# 7.3-9,
+// so raise LangVersion for the design-time build only; real builds are untouched.
+const TARGETS_EXTRA_ITEMS: &str = r#"  <ItemGroup Condition="'$(UseRazorSourceGenerator)' != 'true'">
+    <CompilerVisibleProperty Include="RootNamespace" />
+    <CompilerVisibleProperty Include="MSBuildProjectDirectory" />
+  </ItemGroup>
+
+  <Target Name="ZedRazorLangVersion" AfterTargets="DetectRazorOrCshtmlFiles" Condition="'$(UseRazorSourceGenerator)' != 'true' And '$(UsingMicrosoftNETSdkRazor)' == 'true' And '@(_RazorOrCshtmlFiles)' != '' And $([System.Text.RegularExpressions.Regex]::IsMatch('$(LangVersion)', '^(default|[1-9](\.\d+)?)?$'))">
+    <PropertyGroup>
+      <LangVersion>10.0</LangVersion>
+    </PropertyGroup>
+  </Target>
+</Project>"#;
+
 struct RazorExtension {
     cached_server_dir: Option<String>,
 }
@@ -56,24 +97,55 @@ impl RazorExtension {
         Ok(())
     }
 
+    /// Copies the Razor assemblies into `RAZOR_EXT_DIR`. The originals stay in the server
+    /// root: the server's own MEF composition still has to resolve
+    /// `Microsoft.VisualStudioCode.RazorExtension` from there.
+    fn copy_razor_dlls(server_dir: &str) -> Result<()> {
+        let ext_dir = format!("{server_dir}/{RAZOR_EXT_DIR}");
+        fs::create_dir_all(&ext_dir).map_err(|e| format!("Failed to create {ext_dir}: {e}"))?;
+
+        for dll in RAZOR_DLLS {
+            fs::copy(format!("{server_dir}/{dll}"), format!("{ext_dir}/{dll}"))
+                .map_err(|e| format!("Failed to copy {dll} into {RAZOR_EXT_DIR}: {e}"))?;
+        }
+        Ok(())
+    }
+
+    /// Writes the patched design-time targets. Runs on every launch so extension updates
+    /// reach already-downloaded servers.
+    fn write_targets(server_dir: &str) -> Result<()> {
+        let targets = fs::read_to_string(format!("{server_dir}/{TARGETS_FILE}"))
+            .map_err(|e| format!("Failed to read {TARGETS_FILE}: {e}"))?;
+        if !targets.contains(TARGETS_CONDITION) || !targets.contains("</Project>") {
+            return Err(format!(
+                "{TARGETS_FILE} no longer matches what the Razor design-time patch expects; the extension needs updating"
+            ));
+        }
+        let patched = targets
+            .replace(TARGETS_CONDITION, TARGETS_CONDITION_PATCHED)
+            .replace("</Project>", TARGETS_EXTRA_ITEMS);
+        fs::write(format!("{server_dir}/{TARGETS_FILE_PATCHED}"), patched)
+            .map_err(|e| format!("Failed to write {TARGETS_FILE_PATCHED}: {e}"))
+    }
+
     fn build_command(server_dir: &str, rid: &str, user_args: Option<Vec<String>>) -> zed::Command {
         let binary = Self::binary_path(server_dir, rid);
-        let razor_ext_dir = format!("{server_dir}/.razorExtension");
-
         let log_dir = format!("{server_dir}/logs");
 
+        // --razorSourceGenerator/--razorDesignTimePath were dropped by newer server builds;
+        // the Razor extension (copied into its own directory by copy_razor_dlls) carries the
+        // Razor compiler, and the design-time targets come from the patched polyfill.
         let mut args = vec![
             "--stdio".into(),
+            "--autoLoadProjects".into(),
+            "--csharpDesignTimePath".into(),
+            format!("{server_dir}/{TARGETS_FILE_PATCHED}"),
             "--logLevel".into(),
             "Information".into(),
             "--extensionLogDirectory".into(),
             log_dir,
-            "--razorSourceGenerator".into(),
-            format!("{razor_ext_dir}/Microsoft.CodeAnalysis.Razor.Compiler.dll"),
-            "--razorDesignTimePath".into(),
-            format!("{razor_ext_dir}/Targets/Microsoft.NET.Sdk.Razor.DesignTime.targets"),
             "--extension".into(),
-            format!("{razor_ext_dir}/Microsoft.VisualStudioCode.RazorExtension.dll"),
+            format!("{server_dir}/{RAZOR_EXT_DIR}/{RAZOR_EXT_DLL}"),
         ];
 
         if let Some(extra) = user_args {
@@ -169,16 +241,17 @@ impl zed::Extension for RazorExtension {
 
         // Check/download using relative paths (WASM sandbox)
         let binary_rel = Self::binary_path(&server_dir_rel, rid);
-        let razor_ext_rel = format!(
-            "{server_dir_rel}/.razorExtension/Microsoft.VisualStudioCode.RazorExtension.dll"
-        );
-        let already_installed = fs::metadata(&binary_rel).is_ok_and(|m| m.is_file())
-            && fs::metadata(&razor_ext_rel).is_ok_and(|m| m.is_file());
+        let razor_ext_rel = format!("{server_dir_rel}/{RAZOR_EXT_DIR}/{RAZOR_EXT_DLL}");
+        let already_installed = [&binary_rel, &razor_ext_rel]
+            .iter()
+            .all(|p| fs::metadata(p).is_ok_and(|m| m.is_file()));
 
         if !already_installed {
             Self::download_server(language_server_id, rid, &server_dir_rel)?;
+            Self::copy_razor_dlls(&server_dir_rel)?;
             Self::remove_outdated_servers(&server_dir_rel)?;
         }
+        Self::write_targets(&server_dir_rel)?;
 
         // make_file_executable requires relative path in WASM sandbox
         if !rid.starts_with("win-") {

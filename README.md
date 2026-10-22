@@ -50,6 +50,8 @@ The extension automatically downloads the [Roslyn Language Server](https://githu
 
 Supported platforms: macOS (ARM64, x64), Linux (x64, ARM64), Windows (x64, ARM64).
 
+After downloading, the extension copies the Razor assemblies into `razor-extension/` (the server's Razor extension must not share a directory with the Roslyn assemblies, otherwise the Razor source generator is never discovered). On every launch it writes `Targets/Microsoft.CSharpExtension.DesignTime.Zed.targets`, a copy of the server's design-time polyfill that also applies to Razor SDK projects targeting below net6.0 (e.g. `netcoreapp3.1` Blazor Server), where the SDK disables the Razor source generator, and that passes `RootNamespace` and `MSBuildProjectDirectory` to the generator so components get the right namespace and find their code-behind base classes. For those projects it also raises `LangVersion` to 10.0 in the language server's design-time build only (real builds are unaffected): below C# 10 the generator emits plain `#line` pragmas whose mappings break hover and go-to-definition on `@expressions` in markup. Side effect: the editor won't flag C# 9/10 syntax in such projects; `dotnet build` still does.
+
 For manual configuration options, see [`lsp-razor/README.md`](lsp-razor/README.md).
 
 ## Configuration
