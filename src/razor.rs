@@ -22,6 +22,22 @@ const RAZOR_DLLS: [&str; 5] = [
     "Microsoft.AspNetCore.Razor.Utilities.Shared.dll",
 ];
 
+// The server's design-time polyfill only adds .razor files and the Razor generator to
+// projects that do not use the Razor SDK. Razor SDK projects targeting < net6.0 turn the
+// source generator off (UseRazorSourceGenerator=false), so they need it as well.
+const TARGETS_FILE: &str = "Targets/Microsoft.CSharpExtension.DesignTime.targets";
+const TARGETS_FILE_PATCHED: &str = "Targets/Microsoft.CSharpExtension.DesignTime.Zed.targets";
+const TARGETS_CONDITION: &str = "'$(UsingMicrosoftNETSdkRazor)' != 'true'";
+const TARGETS_CONDITION_PATCHED: &str = "'$(UseRazorSourceGenerator)' != 'true'";
+// Without the Razor SDK's source-generator targets nothing hands RootNamespace and the
+// project directory to the generator, so every component lands in the wrong namespace
+// and its code-behind base class (`@inherits FooBase`) is not found.
+const TARGETS_EXTRA_ITEMS: &str = r#"  <ItemGroup Condition="'$(UseRazorSourceGenerator)' != 'true'">
+    <CompilerVisibleProperty Include="RootNamespace" />
+    <CompilerVisibleProperty Include="MSBuildProjectDirectory" />
+  </ItemGroup>
+</Project>"#;
+
 struct RazorExtension {
     cached_server_dir: Option<String>,
 }
@@ -85,16 +101,35 @@ impl RazorExtension {
         Ok(())
     }
 
+    /// Writes the patched design-time targets. Runs on every launch so extension updates
+    /// reach already-downloaded servers.
+    fn write_targets(server_dir: &str) -> Result<()> {
+        let targets = fs::read_to_string(format!("{server_dir}/{TARGETS_FILE}"))
+            .map_err(|e| format!("Failed to read {TARGETS_FILE}: {e}"))?;
+        if !targets.contains(TARGETS_CONDITION) || !targets.contains("</Project>") {
+            return Err(format!(
+                "{TARGETS_FILE} no longer matches what the Razor design-time patch expects; the extension needs updating"
+            ));
+        }
+        let patched = targets
+            .replace(TARGETS_CONDITION, TARGETS_CONDITION_PATCHED)
+            .replace("</Project>", TARGETS_EXTRA_ITEMS);
+        fs::write(format!("{server_dir}/{TARGETS_FILE_PATCHED}"), patched)
+            .map_err(|e| format!("Failed to write {TARGETS_FILE_PATCHED}: {e}"))
+    }
+
     fn build_command(server_dir: &str, rid: &str, user_args: Option<Vec<String>>) -> zed::Command {
         let binary = Self::binary_path(server_dir, rid);
         let log_dir = format!("{server_dir}/logs");
 
         // --razorSourceGenerator/--razorDesignTimePath were dropped by newer server builds;
         // the Razor extension (copied into its own directory by copy_razor_dlls) carries the
-        // Razor compiler.
+        // Razor compiler, and the design-time targets come from the patched polyfill.
         let mut args = vec![
             "--stdio".into(),
             "--autoLoadProjects".into(),
+            "--csharpDesignTimePath".into(),
+            format!("{server_dir}/{TARGETS_FILE_PATCHED}"),
             "--logLevel".into(),
             "Information".into(),
             "--extensionLogDirectory".into(),
@@ -206,6 +241,7 @@ impl zed::Extension for RazorExtension {
             Self::copy_razor_dlls(&server_dir_rel)?;
             Self::remove_outdated_servers(&server_dir_rel)?;
         }
+        Self::write_targets(&server_dir_rel)?;
 
         // make_file_executable requires relative path in WASM sandbox
         if !rid.starts_with("win-") {
