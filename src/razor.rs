@@ -32,10 +32,20 @@ const TARGETS_CONDITION_PATCHED: &str = "'$(UseRazorSourceGenerator)' != 'true'"
 // Without the Razor SDK's source-generator targets nothing hands RootNamespace and the
 // project directory to the generator, so every component lands in the wrong namespace
 // and its code-behind base class (`@inherits FooBase`) is not found.
+// Below C# 10 the generator cannot emit `#line (l,c)-(l,c)` pragmas and falls back to
+// plain `#line N`, whose source mappings point bare `@expr` in markup at `__builder`
+// (hover/definition break). Razor SDK projects targeting < net6.0 default to C# 7.3-9,
+// so raise LangVersion for the design-time build only; real builds are untouched.
 const TARGETS_EXTRA_ITEMS: &str = r#"  <ItemGroup Condition="'$(UseRazorSourceGenerator)' != 'true'">
     <CompilerVisibleProperty Include="RootNamespace" />
     <CompilerVisibleProperty Include="MSBuildProjectDirectory" />
   </ItemGroup>
+
+  <Target Name="ZedRazorLangVersion" AfterTargets="DetectRazorOrCshtmlFiles" Condition="'$(UseRazorSourceGenerator)' != 'true' And '$(UsingMicrosoftNETSdkRazor)' == 'true' And '@(_RazorOrCshtmlFiles)' != '' And $([System.Text.RegularExpressions.Regex]::IsMatch('$(LangVersion)', '^(default|[1-9](\.\d+)?)?$'))">
+    <PropertyGroup>
+      <LangVersion>10.0</LangVersion>
+    </PropertyGroup>
+  </Target>
 </Project>"#;
 
 struct RazorExtension {
