@@ -95,7 +95,7 @@
 ; HTML Attributes
 ; ---------------------------------------------------------------------------
 (html_attribute
-  name: (attribute_name) @attribute)
+    name: (_) @attribute)
 
 (html_attribute
   "=" @operator)
@@ -125,6 +125,10 @@
 ";" @punctuation.delimiter
 
 ; ---------------------------------------------------------------------------
-; Identifiers
+; Fallbacks
 ; ---------------------------------------------------------------------------
-(identifier) @variable
+; NOTE: no broad (identifier) @variable here — it would override @tag/@attribute
+; on HTML tag/attribute names. Identifiers inside C# are colored by the injected
+; csharp grammar.
+(attribute_value_content) @none
+(text_content) @none

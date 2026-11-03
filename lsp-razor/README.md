@@ -8,7 +8,7 @@ The [Roslyn Language Server](https://github.com/dotnet/roslyn) is Microsoft's of
 
 The extension automatically downloads the pre-built server from the [Crashdummyy/roslynLanguageServer](https://github.com/Crashdummyy/roslynLanguageServer) repository, which includes:
 - `Microsoft.CodeAnalysis.LanguageServer` — the Roslyn server binary
-- `.razorExtension/` — Razor support DLLs:
+- Razor support files, next to the server binary:
   - `Microsoft.CodeAnalysis.Razor.Compiler.dll`
   - `Microsoft.VisualStudioCode.RazorExtension.dll`
   - `Targets/Microsoft.NET.Sdk.Razor.DesignTime.targets`
@@ -36,10 +36,18 @@ The extension automatically downloads the pre-built server from the [Crashdummyy
   --stdio \
   --logLevel Information \
   --extensionLogDirectory <log-dir> \
-  --razorSourceGenerator .razorExtension/Microsoft.CodeAnalysis.Razor.Compiler.dll \
-  --razorDesignTimePath .razorExtension/Targets/Microsoft.NET.Sdk.Razor.DesignTime.targets \
-  --extension .razorExtension/Microsoft.VisualStudioCode.RazorExtension.dll
+  --extension Microsoft.VisualStudioCode.RazorExtension.dll \
+  --autoLoadProjects
 ```
+
+`--autoLoadProjects` makes the server find and load the projects under the
+workspace folders itself. Without it a Razor file belongs to no project and
+every request fails with "Couldn't get a source generator run result for
+project 'Miscellaneous Files'".
+
+Older server builds kept these files in a `.razorExtension/` folder and took
+`--razorSourceGenerator` and `--razorDesignTimePath` arguments. Current builds
+reject both arguments and find the compiler and targets on their own.
 
 ## Custom configuration (Zed settings.json)
 
