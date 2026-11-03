@@ -6,6 +6,8 @@ const SERVER_ID: &str = "roslyn-razor";
 const GITHUB_RELEASES_BASE: &str =
     "https://github.com/Crashdummyy/roslynLanguageServer/releases/latest/download";
 const SERVER_BINARY: &str = "Microsoft.CodeAnalysis.LanguageServer";
+const RAZOR_EXTENSION_DLL: &str = "Microsoft.VisualStudioCode.RazorExtension.dll";
+const AUTO_LOAD_PROJECTS: &str = "--autoLoadProjects";
 
 struct RazorExtension {
     cached_server_dir: Option<String>,
@@ -58,27 +60,30 @@ impl RazorExtension {
 
     fn build_command(server_dir: &str, rid: &str, user_args: Option<Vec<String>>) -> zed::Command {
         let binary = Self::binary_path(server_dir, rid);
-        let razor_ext_dir = format!("{server_dir}/.razorExtension");
-
         let log_dir = format!("{server_dir}/logs");
 
+        // The Razor compiler and design-time targets ship next to the server
+        // and are found by it; only the extension assembly is passed.
         let mut args = vec![
             "--stdio".into(),
             "--logLevel".into(),
             "Information".into(),
             "--extensionLogDirectory".into(),
             log_dir,
-            "--razorSourceGenerator".into(),
-            format!("{razor_ext_dir}/Microsoft.CodeAnalysis.Razor.Compiler.dll"),
-            "--razorDesignTimePath".into(),
-            format!("{razor_ext_dir}/Targets/Microsoft.NET.Sdk.Razor.DesignTime.targets"),
-            "--extension".into(),
-            format!("{razor_ext_dir}/Microsoft.VisualStudioCode.RazorExtension.dll"),
         ];
 
-        if let Some(extra) = user_args {
-            args.extend(extra);
+        // Nothing on the editor side tells the server which projects to
+        // open, so without this every Razor file lands in "Miscellaneous
+        // Files" and each request fails for lack of a source generator run.
+        // It takes an optional value, so it goes ahead of another option
+        // rather than last, where a user argument could be read as its value.
+        let user_args = user_args.unwrap_or_default();
+        if !user_args.iter().any(|arg| arg == AUTO_LOAD_PROJECTS) {
+            args.push(AUTO_LOAD_PROJECTS.into());
         }
+        args.push("--extension".into());
+        args.push(format!("{server_dir}/{RAZOR_EXTENSION_DLL}"));
+        args.extend(user_args);
 
         // On Windows and non-native platforms, use dotnet exec
         if rid == "any" {
@@ -169,9 +174,7 @@ impl zed::Extension for RazorExtension {
 
         // Check/download using relative paths (WASM sandbox)
         let binary_rel = Self::binary_path(&server_dir_rel, rid);
-        let razor_ext_rel = format!(
-            "{server_dir_rel}/.razorExtension/Microsoft.VisualStudioCode.RazorExtension.dll"
-        );
+        let razor_ext_rel = format!("{server_dir_rel}/{RAZOR_EXTENSION_DLL}");
         let already_installed = fs::metadata(&binary_rel).is_ok_and(|m| m.is_file())
             && fs::metadata(&razor_ext_rel).is_ok_and(|m| m.is_file());
 
